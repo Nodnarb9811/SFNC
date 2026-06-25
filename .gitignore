@@ -1,0 +1,18 @@
+# Secrets / local config
+.env
+*.env
+!.env.example
+
+# Daily snapshots (runtime state)
+state/*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Logs
+*.log
