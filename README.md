@@ -68,14 +68,14 @@ For Gmail / Google Workspace use an **App Password**, not your normal password.
 ## Schedule it daily (cron)
 
 ```bash
-bash scripts/install_cron.sh          # runs every day at 07:00 local time
-REPORT_HOUR=8 bash scripts/install_cron.sh   # or pick another hour
+bash scripts/install_cron.sh          # runs every day at 08:00 local time
+REPORT_HOUR=9 bash scripts/install_cron.sh   # or pick another hour
 ```
 
 This adds a crontab entry like:
 
 ```
-0 7 * * * cd /path/to/SFNC && /path/to/.venv/bin/python run_daily.py >> report.log 2>&1
+0 8 * * * cd /path/to/SFNC && /path/to/.venv/bin/python run_daily.py >> report.log 2>&1
 ```
 
 ## Tests

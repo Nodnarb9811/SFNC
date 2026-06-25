@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Install a daily cron job that runs the TryBooking report at 07:00 local time.
+# Install a daily cron job that runs the TryBooking report at 08:00 local time.
 # Usage:  bash scripts/install_cron.sh
 set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PYTHON_BIN="${PYTHON_BIN:-$PROJECT_DIR/.venv/bin/python}"
-HOUR="${REPORT_HOUR:-7}"   # 24h local time; override with REPORT_HOUR=8 etc.
+HOUR="${REPORT_HOUR:-8}"   # 24h local time; override with REPORT_HOUR=9 etc.
 
 if [ ! -x "$PYTHON_BIN" ]; then
   PYTHON_BIN="$(command -v python3)"
