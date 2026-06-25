@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - ".github/workflows/dryrun.yml"
+      - "run_daily.py"
+      - "trybooking/**"
   workflow_dispatch: {}
 
 jobs:
@@ -14,19 +16,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install requests
+      - run: pip install -r requirements.txt
       - env:
           TRYBOOKING_API_KEY: ${{ secrets.TRYBOOKING_API_KEY }}
           TRYBOOKING_SECRET: ${{ secrets.TRYBOOKING_SECRET }}
-        run: |
-          python - <<'PY'
-          import datetime as dt, os, requests
-          auth=(os.environ["TRYBOOKING_API_KEY"], os.environ["TRYBOOKING_SECRET"])
-          base="https://api.trybooking.com/reporting/v1/sales/event"
-          today=dt.date(2026,6,25)
-          for span in [7,31,62,90,180,366,400,732]:
-              frm=(today-dt.timedelta(days=span)).isoformat()
-              r=requests.get(base, auth=auth, params={"fromDate":frm,"toDate":today.isoformat(),"datePeriod":1}, timeout=30)
-              n = len(r.json()) if r.status_code==200 and r.headers.get("content-type","").startswith("application/json") else "-"
-              print(f"span={span:4}d  status={r.status_code}  rows={n}  body={r.text[:90].replace(chr(10),' ')}")
-          PY
+        run: python run_daily.py --dry-run

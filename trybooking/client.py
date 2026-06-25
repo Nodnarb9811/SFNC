@@ -18,12 +18,18 @@ With datePeriod=1 (Day) there is one row per event per day in the range.
 
 from __future__ import annotations
 
+import datetime as _dt
+
 import requests
 
 SALES_EVENT_PATH = "/reporting/v1/sales/event"
 
 # datePeriod values from the spec: 1=Day, 2=Week, 3=Month, 4=Year
 DATE_PERIOD_DAY = 1
+
+# The API rejects a single request spanning more than ~3 months
+# ("Invalid date range."); 90 days works, 180 does not. Chunk below that.
+MAX_CHUNK_DAYS = 80
 
 
 class TryBookingClient:
@@ -49,3 +55,20 @@ class TryBookingClient:
         resp.raise_for_status()
         data = resp.json()
         return data if isinstance(data, list) else []
+
+    def event_sales_range(self, from_date: str, to_date: str,
+                          chunk_days: int = MAX_CHUNK_DAYS) -> list[dict]:
+        """Like ``event_sales`` but split into API-sized chunks and concatenated.
+
+        The Event Sales Report rejects spans wider than ~3 months, so a long
+        history (e.g. 12 months) must be fetched in pieces.
+        """
+        start = _dt.date.fromisoformat(from_date)
+        end = _dt.date.fromisoformat(to_date)
+        rows: list[dict] = []
+        cur = start
+        while cur <= end:
+            chunk_end = min(cur + _dt.timedelta(days=chunk_days), end)
+            rows.extend(self.event_sales(cur.isoformat(), chunk_end.isoformat()))
+            cur = chunk_end + _dt.timedelta(days=1)
+        return rows

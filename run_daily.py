@@ -23,8 +23,9 @@ from trybooking import config, report as report_mod
 
 # Default to Sorrento FNC's timezone (Victoria, AU). Override with REPORT_TIMEZONE.
 TIMEZONE = os.environ.get("REPORT_TIMEZONE", "Australia/Melbourne")
-# How far back to sum for the "tickets sold to date" total.
-LOOKBACK_DAYS = int(os.environ.get("LOOKBACK_DAYS", "1095"))
+# How far back to sum for the "tickets sold" total (fetched in API-sized
+# chunks). Defaults to the last 12 months.
+LOOKBACK_DAYS = int(os.environ.get("LOOKBACK_DAYS", "365"))
 
 
 def _reporting_dates():
@@ -51,7 +52,7 @@ def _fetch_rows(from_date: str, to_date: str) -> list[dict]:
 
     api = config.load_api_config()
     client = TryBookingClient(api.api_key, api.secret, api.base_url)
-    return client.event_sales(from_date, to_date)
+    return client.event_sales_range(from_date, to_date)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -73,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     html_body = report_mod.render_html(report)
     subject = (
         f"Sorrento FNC ticket sales — {reporting_day} "
-        f"(+{report.total_increase} sold, {report.total_sold} total)"
+        f"(+{report.total_increase} sold that day)"
     )
 
     if args.dry_run or args.mock:

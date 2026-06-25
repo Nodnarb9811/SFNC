@@ -81,7 +81,7 @@ def render_text(report: Report) -> str:
         return "\n".join(lines)
 
     name_w = max([len(r.name) for r in report.rows] + [len("Event")])
-    header = f"{'Event'.ljust(name_w)}  {'Sold (total)':>12}  {'+/- day':>8}"
+    header = f"{'Event'.ljust(name_w)}  {'Sold (12mo)':>12}  {'+/- day':>8}"
     lines.append(header)
     lines.append("-" * len(header))
     for r in report.rows:
@@ -124,7 +124,7 @@ def render_html(report: Report) -> str:
     <thead>
       <tr style="background:#0b3d63;color:#fff">
         <th style="text-align:left;padding:6px 10px">Event</th>
-        <th style="text-align:right;padding:6px 10px">Tickets sold (total)</th>
+        <th style="text-align:right;padding:6px 10px">Tickets sold (last 12 months)</th>
         <th style="text-align:right;padding:6px 10px">+/- since previous day</th>
       </tr>
     </thead>
