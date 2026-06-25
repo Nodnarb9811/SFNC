@@ -1,0 +1,24 @@
+name: TEMP probe TryBooking endpoint
+
+# Temporary diagnostic. Runs automatically on push and can be run by hand.
+# Deleted once the correct API path is confirmed.
+on:
+  push:
+    paths:
+      - "probe_trybooking.py"
+      - ".github/workflows/probe.yml"
+  workflow_dispatch: {}
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install requests
+      - env:
+          TRYBOOKING_API_KEY: ${{ secrets.TRYBOOKING_API_KEY }}
+          TRYBOOKING_SECRET: ${{ secrets.TRYBOOKING_SECRET }}
+        run: python probe_trybooking.py
