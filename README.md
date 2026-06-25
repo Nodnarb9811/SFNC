@@ -9,29 +9,31 @@ yesterday**, and **emails the summary to `shop@ssfnc.com.au`**.
 > file is the technical detail / how to run it on your own server instead.
 
 ```
-Event                     Sold   +/- day
--------------------------------------------
-Season Launch              240       +18
-Annual Gala Dinner         184       +12
-Quiz & Trivia Night         92        +5
-Junior Coaching Clinic      56        +0
--------------------------------------------
-TOTAL                      572       +35
+Event                                       Sold (12mo)   +/- day
+-----------------------------------------------------------------
+2025 Sorrento Sharks Presentation Night             143        +6
+Ladies Day 2026                                      77        +4
+Red & White Night                                    15        +1
+-----------------------------------------------------------------
+TOTAL                                               235       +11
 ```
 
 ## How it works
 
 Each run (`run_daily.py`):
 
-1. Calls the TryBooking API (HTTP Basic auth: **Key** = username,
-   **Secret Key** = password) and totals tickets sold per event.
-2. Loads yesterday's saved snapshot from `state/latest.json`.
-3. Builds the report — per-event sold count and the increase vs yesterday.
-4. Emails it (plain-text + HTML table) to the recipient over SMTP.
-5. Saves today's snapshot so tomorrow can compute the next increase.
+1. Calls the TryBooking **Reporting API** Event Sales Report
+   (`GET /reporting/v1/sales/event`, HTTP Basic auth: **Key** = username,
+   **Secret Key** = password), with `datePeriod=1` (daily breakdown).
+2. Because the API caps a single request at ~3 months, it fetches the last 12
+   months in ~80-day chunks and concatenates them.
+3. For each event it computes tickets sold over the last 12 months
+   (`totalSold`) and the tickets sold on the previous day — that day's figure
+   *is* the day-over-day increase.
+4. Emails a plain-text + HTML table to the recipient over SMTP.
 
-The "increase" is derived from saved daily snapshots, so it's correct even if
-the API doesn't expose per-day figures.
+The increase comes straight from the API's per-day figures, so no local state
+is needed between runs.
 
 ## Setup
 
@@ -109,16 +111,13 @@ This adds a crontab entry like:
 .venv/bin/python -m pytest -q
 ```
 
-## ⚠️ One thing to confirm against the TryBooking docs
+## TryBooking API — verified
 
-The environment this was built in couldn't reach `developer.trybooking.com`
-(network policy), so the **endpoint paths and JSON field names** are based on
-TryBooking's documented Basic-auth REST API and are all collected at the top of
-[`trybooking/client.py`](trybooking/client.py) under `>>> VERIFY-AGAINST-DOCS`.
-If a path or field name differs in your account's docs, change it there — it's
-the only TryBooking-specific code. Everything else (diff, email, scheduling) is
-generic and covered by tests. Run `--dry-run` once after setup to confirm the
-events come back as expected.
+The client is wired against the live TryBooking Reporting API
+(`https://api.trybooking.com`, spec at `/swagger/v1/swagger.json`) and has been
+confirmed working end-to-end against the real account: `--dry-run` returns the
+event sales table with live figures. Endpoint constants live at the top of
+[`trybooking/client.py`](trybooking/client.py).
 
 ## Security note
 

@@ -3,10 +3,6 @@
 *.env
 !.env.example
 
-# Daily snapshots: keep latest.json (the cloud job commits it back so the
-# day-over-day comparison survives between runs); ignore the dated history.
-state/snapshot-*.json
-
 # Python
 __pycache__/
 *.py[cod]

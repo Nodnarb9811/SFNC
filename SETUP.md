@@ -1,8 +1,11 @@
 # Setup guide (the simple, no-computer version)
 
 This runs your daily ticket-sales email automatically in the cloud, for free.
-You don't need to install anything or leave a computer on. There are just
-**three steps**, all done in your web browser on GitHub.
+You don't need to install anything or leave a computer on.
+
+**Status so far:** the connection to TryBooking is set up and confirmed
+working — a test run already pulled your real event sales. The only thing left
+is letting it **send the email** (the two `SMTP_*` secrets below), then a test.
 
 ---
 
@@ -31,12 +34,12 @@ shown in the code.
 
    | Name (type exactly)   | Value to paste                                        |
    |-----------------------|-------------------------------------------------------|
-   | `TRYBOOKING_API_KEY`  | the **Key** from your TryBooking "Generate API key" box |
-   | `TRYBOOKING_SECRET`   | the **Secret Key** from that same box                 |
+   | `TRYBOOKING_API_KEY`  | the **Key** from TryBooking — ✅ already added & working |
+   | `TRYBOOKING_SECRET`   | the **Secret Key** — ✅ already added & working          |
    | `SMTP_USER`           | a Microsoft 365 email address that's allowed to send (e.g. reports@ssfnc.com.au) |
    | `SMTP_PASSWORD`       | that mailbox's password (or App Password — see below) |
 
-That's it for typing passwords.
+So really you only need to add the bottom two (`SMTP_USER`, `SMTP_PASSWORD`).
 
 ---
 
