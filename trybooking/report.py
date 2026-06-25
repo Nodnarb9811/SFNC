@@ -1,164 +1,134 @@
-"""Build the daily report: tickets sold per event + increase vs previous day."""
+"""Build the daily report from TryBooking Event Sales Report rows.
+
+For each event we compute:
+  * total_sold  — tickets sold to date (sum of totalSold across the window)
+  * increase    — tickets sold on the reporting day (yesterday) = the
+                  day-over-day increase in the running total.
+"""
 
 from __future__ import annotations
 
 import html
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
 
 
 @dataclass
-class ReportRow:
-    event_id: str
+class EventRow:
     name: str
-    tickets_sold: int
-    previous: int
+    total_sold: int
     increase: int
 
 
 @dataclass
 class Report:
-    date_str: str
-    rows: list[ReportRow]
-    has_previous: bool
+    reporting_day: str
+    rows: list = field(default_factory=list)
 
     @property
     def total_sold(self) -> int:
-        return sum(r.tickets_sold for r in self.rows)
+        return sum(r.total_sold for r in self.rows)
 
     @property
     def total_increase(self) -> int:
         return sum(r.increase for r in self.rows)
 
 
-def _to_plain(sales: dict[str, Any]) -> dict[str, dict]:
-    out: dict[str, dict] = {}
-    for eid, s in sales.items():
-        if hasattr(s, "name"):
-            out[eid] = {"name": s.name, "tickets_sold": int(s.tickets_sold)}
-        else:
-            out[eid] = {"name": s["name"], "tickets_sold": int(s["tickets_sold"])}
-    return out
+def build_report(rows: list[dict], reporting_day: str) -> Report:
+    """Aggregate raw EventSalesDto rows into a Report.
 
+    ``reporting_day`` is the yyyy-MM-dd whose sales count as the day's increase.
+    """
+    cumulative: dict[str, int] = {}
+    on_day: dict[str, int] = {}
+    order: list[str] = []
 
-def build_report(date_str: str, current: dict[str, Any], previous: dict[str, dict] | None) -> Report:
-    cur = _to_plain(current)
-    prev = previous or {}
-    has_previous = previous is not None
+    for r in rows:
+        name = (r.get("eventName") or "(unnamed event)").strip()
+        date = (r.get("transactionDate") or "")[:10]
+        try:
+            sold = int(r.get("totalSold") or 0)
+        except (TypeError, ValueError):
+            sold = 0
+        if name not in cumulative:
+            cumulative[name] = 0
+            on_day[name] = 0
+            order.append(name)
+        cumulative[name] += sold
+        if date == reporting_day:
+            on_day[name] += sold
 
-    rows: list[ReportRow] = []
-    for eid, info in cur.items():
-        prev_sold = int(prev.get(eid, {}).get("tickets_sold", 0))
-        sold = int(info["tickets_sold"])
-        rows.append(
-            ReportRow(
-                event_id=eid,
-                name=info["name"],
-                tickets_sold=sold,
-                previous=prev_sold,
-                increase=sold - prev_sold,
-            )
-        )
-
-    # Biggest movers first, then by total sold.
-    rows.sort(key=lambda r: (r.increase, r.tickets_sold), reverse=True)
-    return Report(date_str=date_str, rows=rows, has_previous=has_previous)
+    out = [EventRow(n, cumulative[n], on_day[n]) for n in order if cumulative[n] > 0]
+    # Biggest increase first, then biggest total.
+    out.sort(key=lambda e: (e.increase, e.total_sold), reverse=True)
+    return Report(reporting_day=reporting_day, rows=out)
 
 
 # --- rendering -------------------------------------------------------------
 
-def _fmt_delta(n: int, first_run: bool) -> str:
-    if first_run:
-        return "—"
+def _delta(n: int) -> str:
     return f"+{n}" if n > 0 else str(n)
 
 
 def render_text(report: Report) -> str:
     lines = [
-        f"SSFNC — TryBooking ticket sales — {report.date_str}",
-        "=" * 52,
+        f"Sorrento FNC — TryBooking ticket sales",
+        f"New sales on {report.reporting_day}",
+        "=" * 48,
         "",
     ]
-    if not report.has_previous:
-        lines.append("(First run — no previous day to compare against yet.)")
-        lines.append("")
+    if not report.rows:
+        lines.append("No event sales found.")
+        return "\n".join(lines)
 
     name_w = max([len(r.name) for r in report.rows] + [len("Event")])
-    header = f"{'Event'.ljust(name_w)}  {'Sold':>6}  {'+/- day':>8}"
+    header = f"{'Event'.ljust(name_w)}  {'Sold (total)':>12}  {'+/- day':>8}"
     lines.append(header)
     lines.append("-" * len(header))
     for r in report.rows:
-        lines.append(
-            f"{r.name.ljust(name_w)}  {r.tickets_sold:>6}  "
-            f"{_fmt_delta(r.increase, not report.has_previous):>8}"
-        )
+        lines.append(f"{r.name.ljust(name_w)}  {r.total_sold:>12}  {_delta(r.increase):>8}")
     lines.append("-" * len(header))
-    lines.append(
-        f"{'TOTAL'.ljust(name_w)}  {report.total_sold:>6}  "
-        f"{_fmt_delta(report.total_increase, not report.has_previous):>8}"
-    )
-    if not report.rows:
-        lines.append("(No events returned by the TryBooking API.)")
+    lines.append(f"{'TOTAL'.ljust(name_w)}  {report.total_sold:>12}  {_delta(report.total_increase):>8}")
     return "\n".join(lines)
 
 
 def render_html(report: Report) -> str:
-    first = not report.has_previous
-
     def delta_cell(n: int) -> str:
-        if first:
-            return '<td style="text-align:right;color:#888">—</td>'
         color = "#1a7f37" if n > 0 else ("#888" if n == 0 else "#b00")
-        text = f"+{n}" if n > 0 else str(n)
-        return f'<td style="text-align:right;color:{color};font-weight:600">{text}</td>'
+        return f'<td style="text-align:right;padding:4px 10px;color:{color};font-weight:600">{_delta(n)}</td>'
 
-    rows_html = []
-    for r in report.rows:
-        rows_html.append(
+    if not report.rows:
+        body_rows = '<tr><td colspan="3" style="padding:8px 10px;color:#888">No event sales found.</td></tr>'
+        foot = ""
+    else:
+        body_rows = "".join(
             "<tr>"
             f'<td style="padding:4px 10px">{html.escape(r.name)}</td>'
-            f'<td style="text-align:right;padding:4px 10px">{r.tickets_sold}</td>'
+            f'<td style="text-align:right;padding:4px 10px">{r.total_sold}</td>'
             f"{delta_cell(r.increase)}"
+            "</tr>"
+            for r in report.rows
+        )
+        foot = (
+            '<tr style="border-top:2px solid #0b3d63;font-weight:700">'
+            '<td style="padding:6px 10px">TOTAL</td>'
+            f'<td style="text-align:right;padding:6px 10px">{report.total_sold}</td>'
+            f'<td style="text-align:right;padding:6px 10px">{_delta(report.total_increase)}</td>'
             "</tr>"
         )
 
-    note = (
-        '<p style="color:#888;font-size:13px">First run — no previous day to '
-        "compare against yet.</p>"
-        if first
-        else ""
-    )
-    empty = (
-        '<p style="color:#888">No events returned by the TryBooking API.</p>'
-        if not report.rows
-        else ""
-    )
-
     return f"""\
 <html><body style="font-family:Arial,Helvetica,sans-serif;color:#222">
-  <h2 style="margin-bottom:0">SSFNC — TryBooking ticket sales</h2>
-  <p style="margin-top:4px;color:#555">{report.date_str}</p>
-  {note}
-  <table style="border-collapse:collapse;min-width:420px">
+  <h2 style="margin-bottom:0">Sorrento FNC — TryBooking ticket sales</h2>
+  <p style="margin-top:4px;color:#555">New sales on {report.reporting_day}</p>
+  <table style="border-collapse:collapse;min-width:460px">
     <thead>
       <tr style="background:#0b3d63;color:#fff">
         <th style="text-align:left;padding:6px 10px">Event</th>
-        <th style="text-align:right;padding:6px 10px">Tickets sold</th>
-        <th style="text-align:right;padding:6px 10px">+/- since yesterday</th>
+        <th style="text-align:right;padding:6px 10px">Tickets sold (total)</th>
+        <th style="text-align:right;padding:6px 10px">+/- since previous day</th>
       </tr>
     </thead>
-    <tbody>
-      {''.join(rows_html)}
-    </tbody>
-    <tfoot>
-      <tr style="border-top:2px solid #0b3d63;font-weight:700">
-        <td style="padding:6px 10px">TOTAL</td>
-        <td style="text-align:right;padding:6px 10px">{report.total_sold}</td>
-        <td style="text-align:right;padding:6px 10px">{
-          '—' if first else ('+' + str(report.total_increase) if report.total_increase > 0 else str(report.total_increase))
-        }</td>
-      </tr>
-    </tfoot>
+    <tbody>{body_rows}</tbody>
+    <tfoot>{foot}</tfoot>
   </table>
-  {empty}
 </body></html>"""

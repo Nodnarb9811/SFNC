@@ -1,74 +1,85 @@
 #!/usr/bin/env python3
-"""Daily TryBooking ticket-sales report → email to shop@ssfnc.com.au.
+"""Daily TryBooking ticket-sales report -> email to shop@ssfnc.com.au.
 
-Run once a day from cron. On each run it:
-  1. Pulls every event's tickets-sold total from the TryBooking API.
-  2. Compares against yesterday's stored snapshot to get the daily increase.
-  3. Emails a per-event table (sold + increase) to the configured recipient.
-  4. Saves today's snapshot for tomorrow's comparison.
+Runs once a day. It pulls the TryBooking Event Sales Report, computes each
+event's tickets sold to date and how many sold on the previous day (the
+day-over-day increase), and emails a per-event table.
 
 Usage:
-  python run_daily.py            # fetch live data, email, save snapshot
-  python run_daily.py --dry-run  # print the report, don't email or save
-  python run_daily.py --mock     # use built-in sample data (no network/SMTP)
+  python run_daily.py            # fetch live data and email the report
+  python run_daily.py --dry-run  # fetch live data, print the report, no email
+  python run_daily.py --mock     # use sample data, no network, no email
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import sys
-from datetime import date
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
-from trybooking import config, report as report_mod, state
+from trybooking import config, report as report_mod
 
-
-def _mock_sales() -> dict:
-    from trybooking.client import EventSales
-
-    return {
-        "101": EventSales("101", "Annual Gala Dinner", 184),
-        "102": EventSales("102", "Junior Coaching Clinic", 56),
-        "103": EventSales("103", "Quiz & Trivia Night", 92),
-        "104": EventSales("104", "Season Launch", 240),
-    }
+# Default to Sorrento FNC's timezone (Victoria, AU). Override with REPORT_TIMEZONE.
+TIMEZONE = os.environ.get("REPORT_TIMEZONE", "Australia/Melbourne")
+# How far back to sum for the "tickets sold to date" total.
+LOOKBACK_DAYS = int(os.environ.get("LOOKBACK_DAYS", "1095"))
 
 
-def _fetch_live_sales() -> dict:
+def _reporting_dates():
+    today = datetime.now(ZoneInfo(TIMEZONE)).date()
+    reporting_day = (today - timedelta(days=1)).isoformat()  # yesterday, last complete day
+    from_date = (today - timedelta(days=LOOKBACK_DAYS)).isoformat()
+    to_date = today.isoformat()
+    return reporting_day, from_date, to_date
+
+
+def _mock_rows(reporting_day: str) -> list[dict]:
+    prev = (datetime.fromisoformat(reporting_day) - timedelta(days=1)).date().isoformat()
+    return [
+        {"eventName": "Red & White Night", "transactionDate": f"{reporting_day}T00:00:00", "totalSold": 18},
+        {"eventName": "Red & White Night", "transactionDate": f"{prev}T00:00:00", "totalSold": 160},
+        {"eventName": "Season Launch", "transactionDate": f"{reporting_day}T00:00:00", "totalSold": 12},
+        {"eventName": "Season Launch", "transactionDate": f"{prev}T00:00:00", "totalSold": 228},
+        {"eventName": "Junior Presentation", "transactionDate": f"{prev}T00:00:00", "totalSold": 56},
+    ]
+
+
+def _fetch_rows(from_date: str, to_date: str) -> list[dict]:
     from trybooking.client import TryBookingClient
 
     api = config.load_api_config()
     client = TryBookingClient(api.api_key, api.secret, api.base_url)
-    return client.get_event_sales()
+    return client.event_sales(from_date, to_date)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Daily TryBooking ticket-sales report")
-    parser.add_argument("--dry-run", action="store_true", help="print instead of emailing/saving")
-    parser.add_argument("--mock", action="store_true", help="use sample data, no network")
+    parser.add_argument("--dry-run", action="store_true", help="fetch live data, print, don't email")
+    parser.add_argument("--mock", action="store_true", help="use sample data, no network/email")
     args = parser.parse_args(argv)
 
-    today = date.today().isoformat()
+    reporting_day, from_date, to_date = _reporting_dates()
 
     try:
-        current = _mock_sales() if args.mock else _fetch_live_sales()
-    except Exception as exc:  # noqa: BLE001 - surface a clean message to cron logs
+        rows = _mock_rows(reporting_day) if args.mock else _fetch_rows(from_date, to_date)
+    except Exception as exc:  # noqa: BLE001
         print(f"ERROR fetching TryBooking data: {exc}", file=sys.stderr)
         return 1
 
-    previous = state.load_previous()
-    rep = report_mod.build_report(today, current, previous)
-
-    text_body = report_mod.render_text(rep)
-    html_body = report_mod.render_html(rep)
-    subject = f"SSFNC ticket sales — {today} (total {rep.total_sold}, " + (
-        f"+{rep.total_increase} since yesterday)" if rep.has_previous else "first run)"
+    report = report_mod.build_report(rows, reporting_day)
+    text_body = report_mod.render_text(report)
+    html_body = report_mod.render_html(report)
+    subject = (
+        f"Sorrento FNC ticket sales — {reporting_day} "
+        f"(+{report.total_increase} sold, {report.total_sold} total)"
     )
 
     if args.dry_run or args.mock:
         print(subject)
         print()
         print(text_body)
-        # --mock / --dry-run never touch SMTP or the real snapshot state.
         return 0
 
     try:
@@ -80,9 +91,6 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:  # noqa: BLE001
         print(f"ERROR sending email: {exc}", file=sys.stderr)
         return 1
-
-    saved = state.save_snapshot(today, current)
-    print(f"Saved snapshot: {saved}")
     return 0
 
 
