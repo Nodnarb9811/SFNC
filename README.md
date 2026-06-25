@@ -49,11 +49,31 @@ Your credentials from the **Generate API key** dialog go in `.env`:
 
 `.env` is gitignored — credentials are never committed.
 
-### Email (SMTP)
+### Email (Microsoft 365)
 
-The report is sent via whatever SMTP server you configure in `.env`
-(`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_SECURITY`).
-For Gmail / Google Workspace use an **App Password**, not your normal password.
+`.env.example` is preconfigured for Microsoft 365:
+
+```
+SMTP_HOST=smtp.office365.com
+SMTP_PORT=587
+SMTP_SECURITY=tls
+SMTP_USER=<a real, licensed M365 mailbox>
+SMTP_PASSWORD=<that mailbox's password or App Password>
+REPORT_FROM=<the same mailbox, or a shared mailbox it can "Send As">
+```
+
+Two M365 requirements to be aware of (both set by an IT/tenant admin):
+
+1. **SMTP AUTH must be enabled** for the sending mailbox. Microsoft disables
+   it by default on many tenants. Enable it in the Microsoft 365 admin centre:
+   *Users → the mailbox → Mail → Manage email apps → tick "Authenticated SMTP"*,
+   or via PowerShell:
+   `Set-CASMailbox -Identity reports@ssfnc.com.au -SmtpClientAuthenticationDisabled $false`
+2. **If the mailbox uses MFA**, a normal password won't work for SMTP — create
+   an **App Password** for it and use that as `SMTP_PASSWORD`.
+
+If your tenant blocks Authenticated SMTP entirely, the alternative is sending
+via Microsoft Graph (OAuth) — tell me and I'll add a Graph sender.
 
 ## Try it before going live
 
