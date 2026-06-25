@@ -6,14 +6,15 @@ You don't need to install anything or leave a computer on. There are just
 
 ---
 
-## Step 1 — Get the code onto your main branch
+## Step 1 — ✅ Already done
 
-The code currently sits on a separate branch. GitHub will only run the daily
-schedule from your **main** branch, so it needs to be merged in once.
+The code is already on your repository's **default branch**, which is the
+branch GitHub uses to run the daily schedule. So there's nothing to merge —
+this step is taken care of.
 
-👉 *Claude can do this for you by opening a "Pull Request" and merging it — just
-ask. Or if you have someone technical, they can merge the branch
-`claude/fervent-shannon-oskvaa` into `main`.*
+*(Optional tidy-up, not required: if you'd prefer the branch to be called
+`main`, you can rename it in GitHub under **Settings → General → Default
+branch → the pencil/rename icon**. The automation works either way.)*
 
 ---
 
