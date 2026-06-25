@@ -4,6 +4,10 @@ A small automation that runs **once a day**, asks the TryBooking API how many
 tickets each event has sold, works out **how many more were sold since
 yesterday**, and **emails the summary to `shop@ssfnc.com.au`**.
 
+> **Just want it working with no fuss?** Follow [`SETUP.md`](SETUP.md) — it runs
+> free in the cloud (GitHub Actions), no computer required. The rest of this
+> file is the technical detail / how to run it on your own server instead.
+
 ```
 Event                     Sold   +/- day
 -------------------------------------------
