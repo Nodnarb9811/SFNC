@@ -1,11 +1,11 @@
 name: Daily TryBooking ticket-sales report
 
-# Runs every day, plus a "Run workflow" button you can click to test it now.
+# Daily schedule is turned OFF. This now only runs when you click
+# "Run workflow" on the Actions tab. To re-enable the daily 8am email later,
+# uncomment the schedule block below.
 on:
-  schedule:
-    # 22:00 UTC = 8:00am Australian Eastern Standard Time (9:00am during
-    # daylight saving). GitHub only understands UTC. Adjust if you like.
-    - cron: "0 22 * * *"
+  # schedule:
+  #   - cron: "0 22 * * *"   # 22:00 UTC = 8am AEST (9am during daylight saving)
   workflow_dispatch: {}
 
 jobs:
